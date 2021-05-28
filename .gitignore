@@ -1,2 +1,5 @@
 maven/
 .DS_Store
+.gradle/
+build/
+.idea
