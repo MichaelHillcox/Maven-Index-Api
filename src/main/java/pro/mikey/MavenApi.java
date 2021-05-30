@@ -7,8 +7,13 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.javalin.Javalin;
 import io.javalin.plugin.json.JavalinJackson;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Optional;
 
@@ -17,7 +22,6 @@ public class MavenApi {
 
     public static void main(String[] args) {
         Path mavenRoot = Paths.get("./maven");
-//        System.out.println(MAVEN_FETCHER.getRepos(mavenRoot));
         Javalin app = Javalin.create().start(7000);
 
         JavalinJackson.configure(new ObjectMapper().registerModule(new JavaTimeModule()));
@@ -31,9 +35,27 @@ public class MavenApi {
             HashSet<MavenMeta> repos = MAVEN_FETCHER.getRepos(mavenRoot);
             Optional<MavenMeta> name = repos.stream().filter(e -> e.artifact().equals(ctx.pathParam("name"))).findFirst();
 
-            name.ifPresentOrElse(ctx::json, () -> ctx.status(404).json(new ResError("Nothing found")));
+            name.ifPresentOrElse((e) -> {
+                HashMap<String, String[]> files = new HashMap<>();
+                for (String version : e.versions()) {
+                    files.put(version, e.home().resolve(version).toFile().list());
+                }
+
+                ctx.json(new MavenFiles(
+                    e.latest(),
+                    e.release(),
+                    e.updated(),
+                    files
+                ));
+            }, () -> ctx.status(404).json(new ResError("Nothing found")));
         });
     }
 
     static record ResError(String message) {}
+    static record MavenFiles(
+        String latest,
+        String release,
+        Instant updated,
+        HashMap<String, String[]> files
+    ) {}
 }
