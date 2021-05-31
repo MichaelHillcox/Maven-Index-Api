@@ -1,4 +1,5 @@
 {
   "mavenDir": "./maven",
-  "contextPath": "/"
+  "contextPath": "/",
+  "port": 7000
 }

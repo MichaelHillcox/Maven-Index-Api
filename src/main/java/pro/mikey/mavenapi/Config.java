@@ -1,4 +1,4 @@
 package pro.mikey.mavenapi;
 
-public record Config(String mavenDir, String contextPath) {
+public record Config(String mavenDir, String contextPath, String port) {
 }

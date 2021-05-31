@@ -46,7 +46,10 @@ public class MavenApi {
         app.config.contextPath = config.contextPath() == null
             ? "/"
             : config.contextPath();
-        app.start(7000);
+
+        app.start(config.port() == null
+            ? 7000
+            : Integer.parseInt(config.port()));
 
         // Configure the json parser
         JavalinJackson.configure(mapper);
