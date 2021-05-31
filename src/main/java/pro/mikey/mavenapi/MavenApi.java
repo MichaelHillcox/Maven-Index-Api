@@ -1,12 +1,14 @@
-package pro.mikey;
+package pro.mikey.mavenapi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.javalin.Javalin;
 import io.javalin.plugin.json.JavalinJackson;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Optional;
@@ -16,17 +18,31 @@ public class MavenApi {
     private static final MetaMavenFetcher MAVEN_FETCHER = new MetaMavenFetcher();
 
     public static void main(String[] args) {
-        Path mavenRoot = Paths.get("./maven");
+        // Get the maven director from the args
+        String mavenDir = Arrays.stream(args).filter(e -> e.contains("--mavenDir=")).findFirst().map(e -> e.replace("--mavenDir=", "")).orElse("");
+        if (mavenDir.isEmpty()) {
+            System.out.println("No maven dir specific, please use --mavenDir=<path> to specific a maven dir to scan");
+            return;
+        }
+
+        Path mavenRoot = Paths.get(mavenDir);
+        if (!Files.exists(mavenRoot) || !Files.isReadable(mavenRoot)) {
+            System.out.println("Your maven root [" + mavenDir + "] does not exist or is not readable");
+            return;
+        }
+
         Javalin app = Javalin.create().start(7000);
 
         JavalinJackson.configure(new ObjectMapper().registerModule(new JavaTimeModule()));
 
+        // Displays a distinct list of groups found in our maven path
         app.get("/repos", ctx -> {
             HashSet<MavenMeta> repos = MAVEN_FETCHER.getRepos(mavenRoot);
 
             ctx.json(repos.stream().map(MavenMeta::groupId).distinct().collect(Collectors.toList()));
         });
 
+        // Using the /repos endpoint you can now find the projects for a specific group / domain
         app.get("/repos/:group/projects", ctx -> {
             HashSet<MavenMeta> repos = MAVEN_FETCHER.getRepos(mavenRoot);
             String group = ctx.pathParam("group");
@@ -38,11 +54,13 @@ public class MavenApi {
             ctx.json(repos.stream().filter(e -> e.groupId().equals(group)).map(MavenMeta::artifact).collect(Collectors.toList()));
         });
 
-        app.get("/repo/:group/:artifact", ctx -> {
-            findByIdentifier(mavenRoot, ctx.pathParam("group"), ctx.pathParam("artifact"))
-                .ifPresentOrElse(ctx::json, () -> ctx.status(404).json(new ResError("Not found")));
-        });
-        
+        // Gives maven meta data for a specific project
+        app.get("/repo/:group/:artifact", ctx -> findByIdentifier(mavenRoot, ctx.pathParam("group"), ctx.pathParam("artifact"))
+            .ifPresentOrElse(ctx::json, () -> ctx.status(404).json(new ResError("Not found"))));
+
+
+        // Physically walks the specific project files to return a paginated list of physical
+        // disc files.
         app.get("/repo/:group/:artifact/files", ctx -> {
             findByIdentifier(mavenRoot, ctx.pathParam("group"), ctx.pathParam("artifact")).ifPresentOrElse((e) -> {
                 String pageParam = ctx.queryParam("page");

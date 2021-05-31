@@ -1,4 +1,4 @@
-package pro.mikey;
+package pro.mikey.mavenapi;
 
 import org.jetbrains.annotations.Nullable;
 import org.w3c.dom.Document;
@@ -32,7 +32,7 @@ public class MetaMavenFetcher {
     public HashSet<MavenMeta> getRepos(Path target) {
         Instant now = Instant.now();
 
-        if (lastRead == null || lastRead.isAfter(now.plus(30, ChronoUnit.MINUTES))) {
+        if (this.lastRead == null || this.lastRead.isAfter(now.plus(30, ChronoUnit.MINUTES))) {
             this.lastRead = now;
             this.repos.clear();
             this.repos.addAll(this.seekMavenMeta(target));
