@@ -1,10 +1,11 @@
 package pro.mikey.mavenapi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.javalin.Javalin;
 import io.javalin.plugin.json.JavalinJackson;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -19,21 +20,36 @@ public class MavenApi {
 
     public static void main(String[] args) {
         // Get the maven director from the args
-        String mavenDir = Arrays.stream(args).filter(e -> e.contains("--mavenDir=")).findFirst().map(e -> e.replace("--mavenDir=", "")).orElse("");
-        if (mavenDir.isEmpty()) {
-            System.out.println("No maven dir specific, please use --mavenDir=<path> to specific a maven dir to scan");
+        String configArg = Arrays.stream(args).filter(e -> e.contains("--config=")).findFirst().map(e -> e.replace("--config=", "")).orElse("./config.json");
+        Path configPath = Path.of(configArg);
+
+        ObjectMapper mapper = JsonMapper.builder()
+            .findAndAddModules()
+            .build();
+
+        Config config;
+        try {
+            config = mapper.readValue(configPath.toFile(), Config.class);
+        } catch (IOException e) {
+            System.out.println("Config file not found or not readable...");
             return;
         }
 
-        Path mavenRoot = Paths.get(mavenDir);
+        Path mavenRoot = Paths.get(config.mavenDir());
         if (!Files.exists(mavenRoot) || !Files.isReadable(mavenRoot)) {
-            System.out.println("Your maven root [" + mavenDir + "] does not exist or is not readable");
+            System.out.println("Your maven root [" + config.mavenDir() + "] does not exist or is not readable");
             return;
         }
 
-        Javalin app = Javalin.create().start(7000);
+        // Configure Javalin
+        Javalin app = Javalin.create();
+        app.config.contextPath = config.contextPath() == null
+            ? "/"
+            : config.contextPath();
+        app.start(7000);
 
-        JavalinJackson.configure(new ObjectMapper().registerModule(new JavaTimeModule()));
+        // Configure the json parser
+        JavalinJackson.configure(mapper);
 
         // Displays a distinct list of groups found in our maven path
         app.get("/repos", ctx -> {
